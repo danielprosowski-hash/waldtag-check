@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Waldtag-Check</title>
+<meta name="description" content="Morgendlicher Check für Waldgruppen: Waldbrandgefahr, Unwetter, Wind, Hitze und Hinweise fürs Team." />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Waldtag" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#1E2A1C" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<style>
+  :root {
+    --bg: #F4F1E8;
+    --surface: #FFFFFF;
+    --surface-2: #ECE8DC;
+    --text: #1F2A1D;
+    --muted: #5E6B5A;
+    --line: #D8D2C2;
+    --accent: #2F5D34;
+    --green: #2E7D32;
+    --green-bg: #E3F1E0;
+    --yellow: #9A6B00;
+    --yellow-bg: #FFF3CC;
+    --red: #B3261E;
+    --red-bg: #FBE1DE;
+    --grey: #6B6B6B;
+    --grey-bg: #ECECEC;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141B13;
+      --surface: #1E2A1C;
+      --surface-2: #26341F;
+      --text: #ECEFE6;
+      --muted: #A3B09C;
+      --line: #34442F;
+      --accent: #8FC48F;
+      --green: #7FD27F;
+      --green-bg: #1F3A1F;
+      --yellow: #F2C94C;
+      --yellow-bg: #3D3417;
+      --red: #FF8A80;
+      --red-bg: #45201C;
+      --grey: #B0B0B0;
+      --grey-bg: #2C2C2C;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141B13; --surface: #1E2A1C; --surface-2: #26341F; --text: #ECEFE6; --muted: #A3B09C;
+    --line: #34442F; --accent: #8FC48F; --green: #7FD27F; --green-bg: #1F3A1F; --yellow: #F2C94C;
+    --yellow-bg: #3D3417; --red: #FF8A80; --red-bg: #45201C; --grey: #B0B0B0; --grey-bg: #2C2C2C;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  a { color: var(--accent); }
+
+  header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  header h1 { font-size: 1.3rem; margin: 0; flex: 1 1 auto; }
+  .icon-btn {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 12px; font-size: .9rem;
+  }
+  .loc-btn {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 10px 14px; margin-bottom: 12px;
+  }
+  .loc-btn .loc-name { font-weight: 600; }
+  .loc-btn .loc-sub { color: var(--muted); font-size: .85rem; }
+  .loc-btn .loc-change { margin-left: auto; color: var(--accent); font-size: .9rem; white-space: nowrap; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button {
+    flex: 1; padding: 9px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); font-weight: 500;
+  }
+  .tabs button[aria-pressed="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+  .verdict { border-radius: var(--radius); padding: 18px; margin-bottom: 14px; border: 2px solid transparent; }
+  .verdict.l0 { background: var(--green-bg); border-color: var(--green); }
+  .verdict.l1 { background: var(--yellow-bg); border-color: var(--yellow); }
+  .verdict.l2 { background: var(--red-bg); border-color: var(--red); }
+  .verdict.l-1 { background: var(--grey-bg); border-color: var(--grey); }
+  .verdict .lamp { display: flex; gap: 8px; margin-bottom: 10px; }
+  .verdict .lamp span { width: 22px; height: 22px; border-radius: 50%; background: var(--line); opacity: .45; }
+  .verdict.l2 .lamp .r, .verdict.l1 .lamp .y, .verdict.l0 .lamp .g { opacity: 1; }
+  .verdict .lamp .r { background: var(--red); } .verdict .lamp .y { background: var(--yellow); } .verdict .lamp .g { background: var(--green); }
+  .verdict h2 { margin: 0 0 4px; font-size: 1.35rem; }
+  .verdict .window { color: var(--muted); font-size: .9rem; margin-bottom: 8px; }
+  .verdict ul { margin: 6px 0 0; padding-left: 20px; }
+  .verdict .unchecked { margin-top: 8px; font-size: .88rem; color: var(--muted); }
+
+  .section-title { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+
+  .hours { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
+  .hour {
+    flex: 0 0 74px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 8px 6px; text-align: center; font-size: .82rem; scroll-snap-align: start; border-top-width: 5px;
+  }
+  .hour.l0 { border-top-color: var(--green); } .hour.l1 { border-top-color: var(--yellow); } .hour.l2 { border-top-color: var(--red); }
+  .hour .h { font-weight: 600; }
+  .hour .ic { font-size: 1.4rem; line-height: 1.6; }
+  .hour .t { font-weight: 600; font-size: .95rem; }
+  .hour .s { color: var(--muted); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 12px 14px; border-left: 6px solid var(--grey);
+  }
+  .card.l0 { border-left-color: var(--green); } .card.l1 { border-left-color: var(--yellow); }
+  .card.l2 { border-left-color: var(--red); } .card.l-1 { border-left-color: var(--grey); }
+  .card h3 { margin: 0 0 2px; font-size: .95rem; display: flex; justify-content: space-between; gap: 8px; }
+  .card .badge { font-size: .72rem; padding: 2px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; align-self: flex-start; }
+  .badge.l0 { background: var(--green-bg); color: var(--green); } .badge.l1 { background: var(--yellow-bg); color: var(--yellow); }
+  .badge.l2 { background: var(--red-bg); color: var(--red); } .badge.l-1 { background: var(--grey-bg); color: var(--grey); }
+  .card .val { font-size: 1.15rem; font-weight: 600; margin: 4px 0; }
+  .card .det { color: var(--muted); font-size: .86rem; }
+  .card .det p { margin: 4px 0 0; }
+  .alert-item { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+  .alert-item strong { color: var(--text); }
+
+  .hints { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+  .hints ul { margin: 0; padding-left: 20px; }
+  .hints li { margin: 4px 0; }
+
+  footer { color: var(--muted); font-size: .8rem; margin: 22px 0 10px; }
+  footer p { margin: 6px 0; }
+  .status { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: .82rem; margin-bottom: 10px; }
+  .banner { background: var(--yellow-bg); color: var(--text); border-radius: 10px; padding: 8px 12px; font-size: .88rem; margin-bottom: 10px; }
+  .loading { text-align: center; color: var(--muted); padding: 40px 0; }
+
+  dialog {
+    border: none; border-radius: 18px; padding: 0; width: min(560px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px); background: var(--surface); color: var(--text);
+  }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); }
+  .dlg-head h2 { margin: 0; font-size: 1.1rem; }
+  .dlg-body { padding: 14px 16px; }
+  .dlg-body input[type="search"], .dlg-body input[type="number"] {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+  }
+  .primary { background: var(--accent); color: var(--bg); border: none; border-radius: 10px; padding: 11px 14px; font-weight: 600; width: 100%; }
+  .ghost { background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+  .list { list-style: none; margin: 8px 0 0; padding: 0; }
+  .list li button { width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; }
+  .list .sub { color: var(--muted); font-size: .82rem; display: block; }
+  .msg { font-size: .88rem; color: var(--muted); margin: 8px 0; }
+  .msg.err { color: var(--red); }
+  .row { display: grid; grid-template-columns: 1fr 110px; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .row label { font-size: .92rem; }
+  .row small { display: block; color: var(--muted); font-size: .78rem; }
+  fieldset { border: 1px solid var(--line); border-radius: 12px; margin: 0 0 12px; padding: 10px 12px 2px; }
+  legend { font-weight: 600; padding: 0 6px; font-size: .92rem; }
+  .check { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; font-size: .92rem; }
+  .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+  .btn-row > * { flex: 1; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🌲 Waldtag-Check</h1>
+    <button class="icon-btn" id="btnRefresh" aria-label="Daten neu laden">↻ Neu laden</button>
+    <button class="icon-btn" id="btnSettings" aria-label="Einstellungen">⚙︎ Grenzwerte</button>
+  </header>
+
+  <button class="loc-btn" id="btnLoc">
+    <span>📍</span>
+    <span><span class="loc-name" id="locName">…</span><br><span class="loc-sub" id="locSub"></span></span>
+    <span class="loc-change">Ort ändern</span>
+  </button>
+
+  <div class="tabs" role="group" aria-label="Tag wählen">
+    <button id="tabToday" aria-pressed="true">Heute</button>
+    <button id="tabTomorrow" aria-pressed="false">Morgen</button>
+  </div>
+
+  <div id="app"><div class="loading">Daten werden geladen …</div></div>
+
+  <footer>
+    <p><strong>Wichtig:</strong> Die App bündelt öffentliche Daten. Ob die Gruppe in den Wald geht, entscheidet ihr vor Ort. Die Grenzwerte sind Startwerte und sollten zu eurem Hitzeaktionsplan und euren Regeln passen.</p>
+    <p>Quellen: Waldbrandgefahrenstufen vom <a href="https://forst-lsa.maps.arcgis.com/apps/dashboards/0f1b1a23ebd04a3dbd14b76a981d8006" target="_blank" rel="noopener">Landeszentrum Wald Sachsen-Anhalt</a> ·
+      Warnungen vom <a href="https://www.dwd.de/DE/wetter/warnungen_gemeinde/warnWetter_node.html" target="_blank" rel="noopener">Deutschen Wetterdienst</a> über <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a> ·
+      Vorhersage von <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · Ortssuche von Open-Meteo Geocoding (GeoNames)</p>
+  </footer>
+</main>
+
+<!-- Ort wählen -->
+<dialog id="dlgLoc" aria-labelledby="dlgLocTitle">
+  <div class="dlg-head"><h2 id="dlgLocTitle">Ort wählen</h2><button class="ghost" data-close>Schließen</button></div>
+  <div class="dlg-body">
+    <button class="primary" id="btnGps">📍 Meinen Standort verwenden</button>
+    <p class="msg" id="gpsMsg">Das Handy fragt einmal nach der Freigabe. Der Standort wird nur für die Wetterabfrage genutzt und nicht gespeichert, außer als zuletzt gewählter Ort auf diesem Gerät.</p>
+    <label class="check"><input type="checkbox" id="chkAutoGps"> <span>Beim Öffnen der App immer den aktuellen Standort verwenden</span></label>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+    <label for="searchInput" style="font-weight:600;font-size:.92rem">Ort suchen</label>
+    <input type="search" id="searchInput" placeholder="Ortsname, z. B. Satuelle oder Colbitz" autocomplete="off" style="margin-top:6px">
+    <ul class="list" id="searchResults"></ul>
+    <div id="recentWrap">
+      <div class="section-title">Zuletzt gewählt</div>
+      <ul class="list" id="recentList"></ul>
+    </div>
+  </div>
+</dialog>
+
+<!-- Einstellungen -->
+<dialog id="dlgSet" aria-labelledby="dlgSetTitle">
+  <div class="dlg-head"><h2 id="dlgSetTitle">Zeitfenster und Grenzwerte</h2><button class="ghost" data-close>Schließen</button></div>
+  <form class="dlg-body" id="setForm">
+    <fieldset><legend>Zeitfenster</legend>
+      <div class="row"><label for="s_start">Beginn (Uhr)</label><input type="number" id="s_start" min="0" max="23" step="1"></div>
+      <div class="row"><label for="s_end">Ende (Uhr)</label><input type="number" id="s_end" min="1" max="23" step="1"></div>
+    </fieldset>
+    <fieldset><legend>Waldbrandgefahr (Stufe 1 bis 5)</legend>
+      <div class="row"><label for="s_wbGelb">Gelb ab Stufe</label><input type="number" id="s_wbGelb" min="1" max="5"></div>
+      <div class="row"><label for="s_wbRot">Rot ab Stufe</label><input type="number" id="s_wbRot" min="1" max="5"></div>
+    </fieldset>
+    <fieldset><legend>Wind (stärkste Böe im Zeitfenster)</legend>
+      <div class="row"><label for="s_boeGelb">Gelb ab km/h</label><input type="number" id="s_boeGelb" min="0" max="200"></div>
+      <div class="row"><label for="s_boeRot">Rot ab km/h</label><input type="number" id="s_boeRot" min="0" max="200"></div>
+    </fieldset>
+    <fieldset><legend>Hitze (gefühlte Temperatur)</legend>
+      <div class="row"><label for="s_hitzeGelb">Gelb ab °C</label><input type="number" id="s_hitzeGelb" min="10" max="50"></div>
+      <div class="row"><label for="s_hitzeRot">Rot ab °C</label><input type="number" id="s_hitzeRot" min="10" max="50"></div>
+    </fieldset>
+    <fieldset><legend>Kälte (gefühlte Temperatur)</legend>
+      <div class="row"><label for="s_kaelteGelb">Gelb ab °C (oder kälter)</label><input type="number" id="s_kaelteGelb" min="-40" max="10"></div>
+      <div class="row"><label for="s_kaelteRot">Rot ab °C (oder kälter)</label><input type="number" id="s_kaelteRot" min="-40" max="10"></div>
+    </fieldset>
+    <fieldset><legend>Weitere Regeln</legend>
+      <div class="row"><label for="s_uv">Sonnenschutz-Hinweis ab UV-Index</label><input type="number" id="s_uv" min="1" max="12"></div>
+      <div class="row"><label for="s_regen">Regen-Hinweis ab mm im Zeitfenster</label><input type="number" id="s_regen" min="0" max="100" step="0.5"></div>
+      <label class="check"><input type="checkbox" id="s_gewitter"> <span>Gewitter (Vorhersage oder DWD-Warnung) immer als Rot werten</span></label>
+    </fieldset>
+    <div class="btn-row">
+      <button type="button" class="ghost" id="btnReset">Startwerte</button>
+      <button type="submit" class="primary">Speichern</button>
+    </div>
+    <p class="msg">Die Startwerte sind Platzhalter, keine fachliche Empfehlung. Legt sie im Team fest, passend zu eurem Hitzeaktionsplan und euren Regeln für Sturm und Gewitter. Die Einstellungen werden nur auf diesem Gerät gespeichert.</p>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+
+// ---------- Grundeinstellungen ----------
+const DEFAULTS = {
+  start: 8, end: 16,
+  wbGelb: 3, wbRot: 4,
+  boeGelb: 40, boeRot: 60,
+  hitzeGelb: 28, hitzeRot: 32,
+  kaelteGelb: -10, kaelteRot: -15,
+  uv: 6, regen: 5,
+  gewitter: true,
+  autoGps: false
+};
+const DEFAULT_LOC = { name: "Satuelle", sub: "Haldensleben, Landkreis Börde", lat: 52.33475, lon: 11.37957 };
+const FIRE_URL = "https://services-eu1.arcgis.com/QfhFJO45CK0rDeLL/arcgis/rest/services/waldbrandgefahrenstufen_aktuell/FeatureServer/0/query";
+const STALE_FIRE_HOURS = 48;
+const LEVEL_TEXT = { "-1": "nicht geprüft", 0: "unkritisch", 1: "Vorsicht", 2: "kritisch" };
+
+// ---------- Speicher (fehlertolerant) ----------
+const store = {
+  get(key, fallback) {
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+  },
+  set(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* privater Modus o. Ä. */ }
+  }
+};
+
+let settings = { ...DEFAULTS, ...store.get("wtc.settings", {}) };
+let loc = store.get("wtc.loc", DEFAULT_LOC);
+let recent = store.get("wtc.recent", []);
+let day = 0;
+let data = null;
+let loadSeq = 0;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtNum = (n, d = 0) => (n == null || isNaN(n)) ? "–" : Number(n).toLocaleString("de-DE", { maximumFractionDigits: d, minimumFractionDigits: d });
+const fmtTime = (d) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+const fmtDate = (d) => d.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+const fmtDateShort = (d) => d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+// ---------- Wettercodes ----------
+function wx(code) {
+  const m = {
+    0: ["☀️", "klar"], 1: ["🌤️", "überwiegend klar"], 2: ["⛅", "teils bewölkt"], 3: ["☁️", "bedeckt"],
+    45: ["🌫️", "Nebel"], 48: ["🌫️", "Reifnebel"],
+    51: ["🌦️", "leichter Niesel"], 53: ["🌦️", "Niesel"], 55: ["🌧️", "starker Niesel"],
+    56: ["🌧️", "gefrierender Niesel"], 57: ["🌧️", "gefrierender Niesel"],
+    61: ["🌦️", "leichter Regen"], 63: ["🌧️", "Regen"], 65: ["🌧️", "starker Regen"],
+    66: ["🌧️", "gefrierender Regen"], 67: ["🌧️", "gefrierender Regen"],
+    71: ["🌨️", "leichter Schneefall"], 73: ["🌨️", "Schneefall"], 75: ["🌨️", "starker Schneefall"], 77: ["🌨️", "Schneegriesel"],
+    80: ["🌦️", "Regenschauer"], 81: ["🌧️", "Regenschauer"], 82: ["🌧️", "heftige Schauer"],
+    85: ["🌨️", "Schneeschauer"], 86: ["🌨️", "Schneeschauer"],
+    95: ["⛈️", "Gewitter"], 96: ["⛈️", "Gewitter mit Hagel"], 99: ["⛈️", "Gewitter mit Hagel"]
+  };
+  return m[code] || ["·", "unbekannt"];
+}
+const isThunder = (code) => code === 95 || code === 96 || code === 99;
+
+// ---------- Datenabruf ----------
+async function getJson(url, ms = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+
+function fetchWeather(l) {
+  const p = new URLSearchParams({
+    latitude: l.lat, longitude: l.lon, timezone: "Europe/Berlin", forecast_days: 2,
+    hourly: "temperature_2m,apparent_temperature,wind_gusts_10m,wind_speed_10m,precipitation,precipitation_probability,weather_code,uv_index",
+    daily: "sunrise,sunset"
+  });
+  return getJson("https://api.open-meteo.com/v1/forecast?" + p);
+}
+
+function fetchAlerts(l) {
+  return getJson(`https://api.brightsky.dev/alerts?lat=${l.lat}&lon=${l.lon}`);
+}
+
+async function fetchFire(l) {
+  const p = new URLSearchParams({
+    geometry: `${l.lon},${l.lat}`, geometryType: "esriGeometryPoint", inSR: "4326",
+    spatialRel: "esriSpatialRelIntersects", outFields: "melderegion,gefahrenst,gefahrenst_prognose,editdate",
+    returnGeometry: "false", f: "json"
+  });
+  const j = await getJson(FIRE_URL + "?" + p);
+  if (j.error) throw new Error(j.error.message || "ArcGIS-Fehler");
+  return j.features && j.features.length ? j.features[0].attributes : null;
+}
+
+const cacheKey = (l) => `wtc.cache.${l.lat.toFixed(3)},${l.lon.toFixed(3)}`;
+
+async function load() {
+  const seq = ++loadSeq;
+  renderLoc();
+  if (!data) $("app").innerHTML = `<div class="loading">Daten werden geladen …</div>`;
+  const [w, a, f] = await Promise.allSettled([fetchWeather(loc), fetchAlerts(loc), fetchFire(loc)]);
+  if (seq !== loadSeq) return; // inzwischen anderer Ort gewählt
+  const cached = store.get(cacheKey(loc), null);
+  const fresh = {
+    weather: w.status === "fulfilled" ? w.value : null,
+    alerts: a.status === "fulfilled" ? a.value : null,
+    fire: f.status === "fulfilled" ? { attr: f.value } : null,
+    fetchedAt: Date.now(),
+    errors: [w, a, f].map((x, i) => x.status === "rejected" ? ["Wettervorhersage", "DWD-Warnungen", "Waldbrandgefahr"][i] : null).filter(Boolean)
+  };
+  // Fehlendes aus dem Zwischenspeicher ergänzen, wenn vorhanden
+  let usedCache = false;
+  if (cached) {
+    for (const k of ["weather", "alerts", "fire"]) {
+      if (!fresh[k] && cached[k]) { fresh[k] = cached[k]; usedCache = true; }
+    }
+  }
+  fresh.usedCache = usedCache ? (cached.fetchedAt || null) : null;
+  data = fresh;
+  store.set(cacheKey(loc), { weather: data.weather, alerts: data.alerts, fire: data.fire, fetchedAt: data.fetchedAt });
+
+  // Beim GPS-Standort den Namen der Gemeinde vom DWD übernehmen
+  if (loc.gps && data.alerts && data.alerts.location) {
+    const L = data.alerts.location;
+    loc = { ...loc, name: "Mein Standort", sub: [L.name, L.district ? "Landkreis " + L.district : ""].filter(Boolean).join(", ") };
+    store.set("wtc.loc", loc);
+    renderLoc();
+  }
+  render();
+}
+
+// ---------- Bewertung ----------
+function evaluate() {
+  const S = settings;
+  const cards = [];
+  const hints = [];
+  const w = data.weather;
+
+  let dayStr, dayDate;
+  if (w) { dayStr = w.daily.time[day]; }
+  else { const d = new Date(); d.setDate(d.getDate() + day); dayStr = d.toLocaleDateString("sv-SE"); }
+  dayDate = new Date(dayStr + "T12:00");
+  const winStart = new Date(`${dayStr}T${String(S.start).padStart(2, "0")}:00`);
+  const winEnd = new Date(`${dayStr}T${String(S.end).padStart(2, "0")}:00`);
+
+  // Stunden im Zeitfenster
+  const hours = [];
+  if (w) {
+    w.hourly.time.forEach((t, i) => {
+      if (!t.startsWith(dayStr)) return;
+      const h = Number(t.slice(11, 13));
+      if (h < S.start || h > S.end) return;
+      hours.push({
+        h, temp: w.hourly.temperature_2m[i], app: w.hourly.apparent_temperature[i],
+        gust: w.hourly.wind_gusts_10m[i], wind: w.hourly.wind_speed_10m[i],
+        rain: w.hourly.precipitation[i], prob: w.hourly.precipitation_probability[i],
+        code: w.hourly.weather_code[i], uv: w.hourly.uv_index[i]
+      });
+    });
+  }
+  const levelFor = (v, gelb, rot, below = false) =>
+    v == null ? -1 : below ? (v <= rot ? 2 : v <= gelb ? 1 : 0) : (v >= rot ? 2 : v >= gelb ? 1 : 0);
+  hours.forEach((x) => {
+    x.level = Math.max(
+      levelFor(x.gust, S.boeGelb, S.boeRot),
+      levelFor(x.app, S.hitzeGelb, S.hitzeRot),
+      levelFor(x.app, S.kaelteGelb, S.kaelteRot, true),
+      S.gewitter && isThunder(x.code) ? 2 : 0
+    );
+  });
+
+  // 1. Waldbrand
+  {
+    const c = { id: "fire", title: "🔥 Waldbrandgefahr", level: -1, val: "", det: "" };
+    if (!data.fire) {
+      c.val = "keine Verbindung"; c.det = "Die Daten vom Landeszentrum Wald konnten nicht geladen werden.";
+    } else if (!data.fire.attr) {
+      c.val = "keine Landesdaten";
+      c.det = `Für diesen Ort gibt es keine Stufe vom Landeszentrum Wald Sachsen-Anhalt. Bitte beim zuständigen Land oder im <a href="https://www.dwd.de/DE/leistungen/waldbrandgef/waldbrandgef.html" target="_blank" rel="noopener">Waldbrandgefahrenindex des DWD</a> nachsehen.`;
+    } else {
+      const A = data.fire.attr;
+      const edit = A.editdate ? new Date(A.editdate) : null;
+      const ageH = edit ? (Date.now() - edit) / 36e5 : Infinity;
+      const stufe = day === 0 ? A.gefahrenst : A.gefahrenst_prognose;
+      const region = esc(A.melderegion || "");
+      if (ageH > STALE_FIRE_HOURS) {
+        c.val = A.gefahrenst != null ? `zuletzt Stufe ${A.gefahrenst}` : "keine aktuelle Meldung";
+        c.det = `Melderegion: ${region}. Letzte Meldung vom ${edit ? fmtDateShort(edit) : "unbekannt"}. Vermutlich ist die Waldbrandsaison beendet und es werden keine täglichen Stufen veröffentlicht.`;
+      } else if (stufe == null) {
+        c.val = day === 1 ? "keine Prognose" : "keine Stufe";
+        c.det = `Melderegion: ${region}. ${day === 1 ? "Für morgen wurde (noch) keine Prognose veröffentlicht." : "Für heute liegt keine Stufe vor."} Stand: ${edit ? fmtDateShort(edit) + ", " + fmtTime(edit) : "unbekannt"}.`;
+      } else {
+        c.level = levelFor(stufe, S.wbGelb, S.wbRot);
+        c.val = `Stufe ${stufe} von 5`;
+        c.det = `Melderegion: ${region}${day === 1 ? " (Prognose)" : ""}. Stand: ${edit ? fmtDateShort(edit) + ", " + fmtTime(edit) : "unbekannt"}.`;
+        c.reason = `Waldbrandgefahr Stufe ${stufe}`;
+        if (c.level === 1) hints.push("Waldbrand: kein offenes Feuer, keine Glasflaschen liegen lassen, Fluchtwege kennen.");
+        if (c.level === 2) hints.push("Hohe Waldbrandgefahr: aktuelle Vorgaben von Forst, Gemeinde und Träger zum Betreten des Waldes prüfen.");
+      }
+    }
+    cards.push(c);
+  }
+
+  // 2. DWD-Warnungen
+  {
+    const c = { id: "alerts", title: "⚠️ DWD-Warnungen", level: -1, val: "", det: "" };
+    if (!data.alerts) {
+      c.val = "keine Verbindung"; c.det = "Die Warnungen des Deutschen Wetterdienstes konnten nicht geladen werden.";
+    } else {
+      const sevLevel = { minor: 0, moderate: 1, severe: 2, extreme: 2 };
+      const sevText = { minor: "Wetterwarnung", moderate: "markantes Wetter", severe: "Unwetter", extreme: "extremes Unwetter" };
+      const list = (data.alerts.alerts || []).filter((al) => {
+        const on = new Date(al.onset || al.effective);
+        const ex = al.expires ? new Date(al.expires) : null;
+        return on < winEnd && (!ex || ex > winStart);
+      });
+      const L = data.alerts.location;
+      const where = L ? esc(L.name) : "diesen Ort";
+      if (!list.length) {
+        c.level = 0; c.val = "keine Warnung";
+        c.det = `Für ${where} liegt im Zeitfenster keine Warnung vor.`;
+      } else {
+        let lvl = 0;
+        const items = list.map((al) => {
+          let l = sevLevel[al.severity] ?? 1;
+          const ev = (al.event_de || "").toUpperCase();
+          if (S.gewitter && ev.includes("GEWITTER")) l = 2;
+          lvl = Math.max(lvl, l);
+          const on = new Date(al.onset || al.effective), ex = al.expires ? new Date(al.expires) : null;
+          return `<div class="alert-item"><strong>${esc(al.headline_de || al.event_de)}</strong> (${esc(sevText[al.severity] || al.severity)})<br>
+            ${fmtTime(on)} bis ${ex ? (ex.toDateString() === on.toDateString() ? fmtTime(ex) : fmtDateShort(ex) + " " + fmtTime(ex)) : "auf Weiteres"} Uhr
+            ${al.description_de ? `<p>${esc(al.description_de)}</p>` : ""}</div>`;
+        });
+        c.level = lvl;
+        c.val = list.length === 1 ? "1 Warnung" : `${list.length} Warnungen`;
+        c.det = `Gilt für ${where}.` + items.join("");
+        c.reason = "DWD: " + list.map((al) => al.event_de ? al.event_de.charAt(0) + al.event_de.slice(1).toLowerCase() : "Warnung").join(", ");
+      }
+    }
+    cards.push(c);
+  }
+
+  if (w && hours.length) {
+    const maxBy = (k) => hours.reduce((a, b) => (b[k] > a[k] ? b : a));
+    const minBy = (k) => hours.reduce((a, b) => (b[k] < a[k] ? b : a));
+
+    // 3. Wind
+    {
+      const g = maxBy("gust");
+      const lvl = levelFor(g.gust, S.boeGelb, S.boeRot);
+      cards.push({
+        id: "wind", title: "💨 Wind", level: lvl,
+        val: `Böen bis ${fmtNum(g.gust)} km/h`,
+        det: `Stärkste Böe gegen ${g.h} Uhr, mittlerer Wind bis ${fmtNum(maxBy("wind").wind)} km/h.`,
+        reason: `Böen bis ${fmtNum(g.gust)} km/h gegen ${g.h} Uhr`
+      });
+      if (lvl === 1) hints.push("Wind: nicht unter großen Bäumen und Totholz aufhalten, Waldrand oder offene Flächen nutzen.");
+      if (lvl === 2) hints.push("Starker Wind: Gefahr durch Astbruch und umstürzende Bäume, den Wald besser meiden.");
+    }
+
+    // 4. Temperatur
+    {
+      const hi = maxBy("app"), lo = minBy("app");
+      const hot = levelFor(hi.app, S.hitzeGelb, S.hitzeRot);
+      const cold = levelFor(lo.app, S.kaelteGelb, S.kaelteRot, true);
+      const lvl = Math.max(hot, cold);
+      const c = {
+        id: "temp", title: "🌡️ Temperatur", level: lvl,
+        val: `${fmtNum(minBy("temp").temp)} bis ${fmtNum(maxBy("temp").temp)} °C`,
+        det: `Gefühlt ${fmtNum(lo.app)} bis ${fmtNum(hi.app)} °C.`
+      };
+      if (hot > 0) { c.reason = `gefühlt bis ${fmtNum(hi.app)} °C gegen ${hi.h} Uhr`; }
+      else if (cold > 0) { c.reason = `gefühlt nur ${fmtNum(lo.app)} °C gegen ${lo.h} Uhr`; }
+      cards.push(c);
+      if (hot === 1) hints.push("Wärme: schattige Plätze wählen, Trinkpausen fest einplanen, Mittagszeit ruhig gestalten.");
+      if (hot === 2) hints.push("Hitze: Aufenthalt draußen verkürzen und die Maßnahmen aus dem Hitzeaktionsplan umsetzen.");
+      if (cold >= 1) hints.push("Kälte: Wechselkleidung, warme Getränke und viel Bewegung einplanen, Hände und Füße im Blick behalten.");
+    }
+
+    // 5. Niederschlag und Gewitter
+    {
+      const sum = hours.reduce((s, x) => s + (x.rain || 0), 0);
+      const prob = Math.max(...hours.map((x) => x.prob ?? 0));
+      const th = hours.filter((x) => isThunder(x.code));
+      const lvl = th.length && S.gewitter ? 2 : th.length ? 1 : 0;
+      const c = {
+        id: "rain", title: th.length ? "⛈️ Regen und Gewitter" : "🌧️ Regen und Gewitter", level: lvl,
+        val: th.length ? "Gewitter möglich" : sum >= 0.1 ? `${fmtNum(sum, 1)} mm` : "trocken",
+        det: `Regen im Zeitfenster: ${fmtNum(sum, 1)} mm, Wahrscheinlichkeit bis ${fmtNum(prob)} %.` +
+          (th.length ? ` Gewitter vorhergesagt gegen ${th.map((x) => x.h + " Uhr").join(", ")}.` : " Kein Gewitter vorhergesagt.")
+      };
+      if (th.length) c.reason = `Gewitter vorhergesagt gegen ${th[0].h} Uhr`;
+      cards.push(c);
+      if (th.length) hints.push("Gewitter: rechtzeitig ein Gebäude oder ein sicheres Fahrzeug aufsuchen, Wald und einzeln stehende Bäume meiden.");
+      if (sum >= S.regen) hints.push("Regen: Regenkleidung, Wechselsachen und eine Plane für den Sitzkreis einpacken.");
+    }
+
+    // 6. Sonne und UV
+    {
+      const u = maxBy("uv");
+      const c = {
+        id: "uv", title: "😎 Sonne und UV", level: 0,
+        val: `UV-Index bis ${fmtNum(u.uv, 1)}`,
+        det: u.uv >= S.uv ? `Ab UV ${S.uv} ist Sonnenschutz wichtig, am stärksten gegen ${u.h} Uhr.` : "Geringe bis mäßige UV-Belastung."
+      };
+      cards.push(c);
+      if (u.uv >= S.uv) hints.push("Sonne: Sonnencreme, Kopfbedeckung und Schatten zur Mittagszeit.");
+    }
+
+    // 7. Zecken (Hinweis, keine Messdaten)
+    {
+      const month = dayDate.getMonth() + 1;
+      const mean = hours.reduce((s, x) => s + x.temp, 0) / hours.length;
+      const active = month >= 3 && month <= 10 && mean >= 7;
+      cards.push({
+        id: "tick", title: "🕷️ Zecken", level: 0,
+        val: active ? "Zeckenzeit" : "wenig aktiv",
+        det: (active
+          ? `Ab etwa 7 °C sind Zecken aktiv (heute im Mittel ${fmtNum(mean)} °C).`
+          : `Bei Kälte sind Zecken kaum aktiv (heute im Mittel ${fmtNum(mean)} °C).`) +
+          " Grobe Faustregel aus Monat und Temperatur, keine Messdaten."
+      });
+      if (active) hints.push("Zecken: lange, helle Kleidung tragen, Kinder nach dem Waldtag absuchen bzw. die Eltern daran erinnern.");
+    }
+  } else {
+    cards.push({ id: "weather", title: "🌦️ Wetter", level: -1, val: "keine Verbindung", det: "Die Wettervorhersage konnte nicht geladen werden." });
+  }
+
+  const checked = cards.filter((c) => c.level >= 0);
+  const overall = checked.length ? Math.max(...checked.map((c) => c.level)) : -1;
+  const reasons = cards.filter((c) => c.level > 0 && c.level >= Math.max(1, overall - 1) && c.reason)
+    .sort((a, b) => b.level - a.level).map((c) => c.reason);
+  const unchecked = cards.filter((c) => c.level < 0).map((c) => c.title.replace(/^\S+\s/, ""));
+  return { cards, hints, hours, overall, reasons, unchecked, dayDate };
+}
+
+// ---------- Darstellung ----------
+function renderLoc() {
+  $("locName").textContent = loc.name;
+  $("locSub").textContent = loc.sub || `${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)}`;
+}
+
+function render() {
+  if (!data) return;
+  const S = settings;
+  const r = evaluate();
+  const titles = {
+    "-1": "Keine Bewertung möglich",
+    0: "Grün: Waldtag möglich",
+    1: "Gelb: Waldtag mit Einschränkungen",
+    2: "Rot: Waldtag nicht empfohlen"
+  };
+  let html = "";
+  if (data.errors.length) {
+    html += `<div class="banner">Nicht geladen: ${esc(data.errors.join(", "))}.` +
+      (data.usedCache ? ` Angezeigt wird der zuletzt gespeicherte Stand vom ${fmtDateShort(new Date(data.usedCache))}, ${fmtTime(new Date(data.usedCache))} Uhr.` : "") + `</div>`;
+  }
+  html += `<div class="status"><span>Stand: ${fmtTime(new Date(data.fetchedAt))} Uhr</span></div>`;
+
+  html += `<section class="verdict l${r.overall}" aria-live="polite">
+    <div class="lamp" aria-hidden="true"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+    <h2>${titles[r.overall]}</h2>
+    <div class="window">${esc(fmtDate(r.dayDate))}, ${S.start} bis ${S.end} Uhr</div>
+    ${r.reasons.length ? `<ul>${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : r.overall === 0 ? "<div>Keine der geprüften Größen erreicht einen Grenzwert.</div>" : ""}
+    ${r.unchecked.length ? `<div class="unchecked">Nicht geprüft: ${esc(r.unchecked.join(", "))}. Details unten.</div>` : ""}
+  </section>`;
+
+  if (r.hours.length) {
+    html += `<div class="section-title">Stunde für Stunde</div><div class="hours">` +
+      r.hours.map((x) => {
+        const [ic, txt] = wx(x.code);
+        return `<div class="hour l${x.level}" title="${esc(txt)}">
+          <div class="h">${x.h} Uhr</div><div class="ic" aria-label="${esc(txt)}">${ic}</div>
+          <div class="t">${fmtNum(x.temp)}°</div>
+          <div class="s">gef. ${fmtNum(x.app)}°</div>
+          <div class="s">💨 ${fmtNum(x.gust)}</div>
+          <div class="s">💧 ${fmtNum(x.prob)} %</div></div>`;
+      }).join("") + `</div>`;
+  }
+
+  html += `<div class="section-title">Im Einzelnen</div><div class="cards">` +
+    r.cards.map((c) => `<div class="card l${c.level}">
+      <h3><span>${c.title}</span><span class="badge l${c.level}">${LEVEL_TEXT[c.level]}</span></h3>
+      <div class="val">${esc(c.val)}</div><div class="det">${c.det}</div></div>`).join("") + `</div>`;
+
+  html += `<div class="section-title">Hinweise fürs Team</div><div class="hints">` +
+    (r.hints.length ? `<ul>${r.hints.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : "Keine Besonderheiten. Die übliche Ausrüstung reicht.") +
+    `</div>`;
+
+  $("app").innerHTML = html;
+}
+
+// ---------- Tag umschalten ----------
+function setDay(d) {
+  day = d;
+  $("tabToday").setAttribute("aria-pressed", d === 0);
+  $("tabTomorrow").setAttribute("aria-pressed", d === 1);
+  render();
+}
+$("tabToday").onclick = () => setDay(0);
+$("tabTomorrow").onclick = () => setDay(1);
+$("btnRefresh").onclick = () => load();
+
+// ---------- Ort wählen ----------
+function chooseLoc(l) {
+  loc = { name: l.name, sub: l.sub || "", lat: Number(l.lat), lon: Number(l.lon), gps: !!l.gps };
+  store.set("wtc.loc", loc);
+  if (!loc.gps) {
+    recent = [loc, ...recent.filter((x) => !(Math.abs(x.lat - loc.lat) < 1e-3 && Math.abs(x.lon - loc.lon) < 1e-3))].slice(0, 6);
+    store.set("wtc.recent", recent);
+  }
+  data = null;
+  $("dlgLoc").close();
+  load();
+}
+
+function renderRecent() {
+  $("recentWrap").hidden = !recent.length;
+  $("recentList").innerHTML = recent.map((x, i) =>
+    `<li><button data-recent="${i}">${esc(x.name)}<span class="sub">${esc(x.sub)}</span></button></li>`).join("");
+}
+$("recentList").onclick = (e) => {
+  const b = e.target.closest("[data-recent]");
+  if (b) chooseLoc(recent[Number(b.dataset.recent)]);
+};
+
+$("btnLoc").onclick = () => {
+  $("searchInput").value = ""; $("searchResults").innerHTML = "";
+  $("chkAutoGps").checked = !!settings.autoGps;
+  renderRecent();
+  $("dlgLoc").showModal();
+};
+
+let searchTimer, searchResults = [];
+$("searchInput").oninput = (e) => {
+  clearTimeout(searchTimer);
+  const q = e.target.value.trim();
+  if (q.length < 2) { $("searchResults").innerHTML = ""; return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      const p = new URLSearchParams({ name: q, count: 8, language: "de", countryCode: "DE", format: "json" });
+      const j = await getJson("https://geocoding-api.open-meteo.com/v1/search?" + p, 10000);
+      searchResults = (j.results || []).map((x) => ({
+        name: x.name, lat: x.latitude, lon: x.longitude,
+        sub: [x.admin4 && x.admin4 !== x.name ? x.admin4 : "", x.admin3, x.admin1].filter(Boolean).join(", ")
+      }));
+      $("searchResults").innerHTML = searchResults.length
+        ? searchResults.map((x, i) => `<li><button data-res="${i}">${esc(x.name)}<span class="sub">${esc(x.sub)}</span></button></li>`).join("")
+        : `<li class="msg">Kein Ort gefunden. Tipp: nur den Ortsnamen eingeben, Postleitzahlen kennt die Suche nicht.</li>`;
+    } catch {
+      $("searchResults").innerHTML = `<li class="msg err">Die Ortssuche ist gerade nicht erreichbar.</li>`;
+    }
+  }, 300);
+};
+$("searchResults").onclick = (e) => {
+  const b = e.target.closest("[data-res]");
+  if (b) chooseLoc(searchResults[Number(b.dataset.res)]);
+};
+
+function requestGps({ silent = false } = {}) {
+  const msg = $("gpsMsg");
+  if (!("geolocation" in navigator)) {
+    if (!silent) { msg.className = "msg err"; msg.textContent = "Dieses Gerät oder dieser Browser unterstützt keine Standortabfrage."; }
+    return;
+  }
+  if (!window.isSecureContext && !silent) {
+    msg.className = "msg err";
+    msg.textContent = "Der Standort funktioniert nur, wenn die App über https geöffnet wird (nicht als lokale Datei).";
+    return;
+  }
+  if (!silent) { msg.className = "msg"; msg.textContent = "Standort wird ermittelt …"; }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => chooseLoc({ name: "Mein Standort", sub: "wird ermittelt …", lat: pos.coords.latitude, lon: pos.coords.longitude, gps: true }),
+    (err) => {
+      if (silent) return;
+      msg.className = "msg err";
+      msg.textContent = err.code === 1
+        ? "Die Standortfreigabe wurde abgelehnt. Auf dem iPhone unter Einstellungen › Datenschutz & Sicherheit › Ortungsdienste › Safari-Websites auf „Beim Verwenden“ stellen. Oder einfach den Ort unten suchen."
+        : "Der Standort konnte nicht ermittelt werden. Bitte noch einmal versuchen oder den Ort suchen.";
+    },
+    { enableHighAccuracy: false, timeout: 15000, maximumAge: 10 * 60 * 1000 }
+  );
+}
+$("btnGps").onclick = () => requestGps();
+$("chkAutoGps").onchange = (e) => {
+  settings.autoGps = e.target.checked;
+  store.set("wtc.settings", settings);
+  if (settings.autoGps) requestGps();
+};
+
+// ---------- Einstellungen ----------
+const NUM_FIELDS = ["start", "end", "wbGelb", "wbRot", "boeGelb", "boeRot", "hitzeGelb", "hitzeRot", "kaelteGelb", "kaelteRot", "uv", "regen"];
+function fillSettings(s) {
+  NUM_FIELDS.forEach((k) => { $("s_" + k).value = s[k]; });
+  $("s_gewitter").checked = !!s.gewitter;
+}
+$("btnSettings").onclick = () => { fillSettings(settings); $("dlgSet").showModal(); };
+$("btnReset").onclick = () => fillSettings({ ...DEFAULTS, autoGps: settings.autoGps });
+$("setForm").onsubmit = (e) => {
+  e.preventDefault();
+  const next = { ...settings };
+  NUM_FIELDS.forEach((k) => {
+    const v = parseFloat($("s_" + k).value);
+    if (!isNaN(v)) next[k] = v;
+  });
+  next.gewitter = $("s_gewitter").checked;
+  if (next.end <= next.start) { alert("Das Ende des Zeitfensters muss nach dem Beginn liegen."); return; }
+  if (next.wbRot < next.wbGelb || next.boeRot < next.boeGelb || next.hitzeRot < next.hitzeGelb || next.kaelteRot > next.kaelteGelb) {
+    alert("Bitte prüfen: Der Rot-Wert muss strenger sein als der Gelb-Wert.");
+    return;
+  }
+  settings = next;
+  store.set("wtc.settings", settings);
+  $("dlgSet").close();
+  render();
+};
+
+document.querySelectorAll("dialog [data-close]").forEach((b) => { b.onclick = () => b.closest("dialog").close(); });
+document.querySelectorAll("dialog").forEach((d) => d.addEventListener("click", (e) => { if (e.target === d) d.close(); }));
+
+// Nach längerer Pause automatisch aktualisieren
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && data && Date.now() - data.fetchedAt > 30 * 60 * 1000) load();
+});
+
+// ---------- Start ----------
+renderLoc();
+if (settings.autoGps) requestGps({ silent: true });
+load();
+</script>
+</body>
+</html>
