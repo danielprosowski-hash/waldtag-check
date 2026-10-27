@@ -196,7 +196,7 @@
     <p><strong>Wichtig:</strong> Die App bündelt öffentliche Daten. Ob die Gruppe in den Wald geht, entscheidet ihr vor Ort. Die Grenzwerte sind Startwerte und sollten zu eurem Hitzeaktionsplan und euren Regeln passen.</p>
     <p>Quellen: Waldbrandgefahrenstufen vom <a href="https://forst-lsa.maps.arcgis.com/apps/dashboards/0f1b1a23ebd04a3dbd14b76a981d8006" target="_blank" rel="noopener">Landeszentrum Wald Sachsen-Anhalt</a> ·
       Warnungen vom <a href="https://www.dwd.de/DE/wetter/warnungen_gemeinde/warnWetter_node.html" target="_blank" rel="noopener">Deutschen Wetterdienst</a> über <a href="https://brightsky.dev" target="_blank" rel="noopener">Bright Sky</a> ·
-      Vorhersage von <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · Ortssuche von Open-Meteo Geocoding (GeoNames)</p>
+      Vorhersage von <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (für Deutschland vor allem das Modell ICON des DWD) · Ortssuche von Open-Meteo Geocoding (GeoNames)</p>
   </footer>
 </main>
 
@@ -444,7 +444,10 @@ function evaluate() {
       const region = esc(A.melderegion || "");
       if (ageH > STALE_FIRE_HOURS) {
         c.val = A.gefahrenst != null ? `zuletzt Stufe ${A.gefahrenst}` : "keine aktuelle Meldung";
-        c.det = `Melderegion: ${region}. Letzte Meldung vom ${edit ? fmtDateShort(edit) : "unbekannt"}. Vermutlich ist die Waldbrandsaison beendet und es werden keine täglichen Stufen veröffentlicht.`;
+        c.det = `Melderegion: ${region}. Letzte Meldung vom ${edit ? fmtDateShort(edit) : "unbekannt"}. ` +
+          (ageH > 14 * 24
+            ? "Vermutlich ist die Waldbrandsaison beendet und es werden keine täglichen Stufen veröffentlicht."
+            : `Die Meldung ist älter als zwei Tage. Bitte im <a href="https://forst-lsa.maps.arcgis.com/apps/dashboards/0f1b1a23ebd04a3dbd14b76a981d8006" target="_blank" rel="noopener">Dashboard des Landeszentrums Wald</a> nachsehen.`);
       } else if (stufe == null) {
         c.val = day === 1 ? "keine Prognose" : "keine Stufe";
         c.det = `Melderegion: ${region}. ${day === 1 ? "Für morgen wurde (noch) keine Prognose veröffentlicht." : "Für heute liegt keine Stufe vor."} Stand: ${edit ? fmtDateShort(edit) + ", " + fmtTime(edit) : "unbekannt"}.`;
@@ -569,7 +572,8 @@ function evaluate() {
     // 7. Zecken (Hinweis, keine Messdaten)
     {
       const month = dayDate.getMonth() + 1;
-      const mean = hours.reduce((s, x) => s + x.temp, 0) / hours.length;
+      const temps = hours.map((x) => x.temp).filter((t) => t != null);
+      const mean = temps.length ? temps.reduce((s, t) => s + t, 0) / temps.length : NaN;
       const active = month >= 3 && month <= 10 && mean >= 7;
       cards.push({
         id: "tick", title: "🕷️ Zecken", level: 0,
@@ -635,6 +639,10 @@ function render() {
           <div class="s">💨 ${fmtNum(x.gust)}</div>
           <div class="s">💧 ${fmtNum(x.prob)} %</div></div>`;
       }).join("") + `</div>`;
+  }
+  const wcName = loc.gps ? (data.alerts && data.alerts.location ? data.alerts.location.name_short : "") : loc.name;
+  if (wcName) {
+    html += `<p class="msg"><a href="https://www.wetter.com/suche/?q=${encodeURIComponent(wcName)}" target="_blank" rel="noopener">Zum Vergleich: ${esc(wcName)} bei wetter.com ansehen ↗</a></p>`;
   }
 
   html += `<div class="section-title">Im Einzelnen</div><div class="cards">` +
