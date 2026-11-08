@@ -271,8 +271,8 @@ const DEFAULTS = {
 };
 const DEFAULT_LOC = { name: "Satuelle", sub: "Haldensleben, Landkreis Börde", lat: 52.33475, lon: 11.37957 };
 const FIRE_URL = "https://services-eu1.arcgis.com/QfhFJO45CK0rDeLL/arcgis/rest/services/waldbrandgefahrenstufen_aktuell/FeatureServer/0/query";
-const STALE_FIRE_HOURS = 48;
 const LEVEL_TEXT = { "-1": "nicht geprüft", 0: "unkritisch", 1: "Vorsicht", 2: "kritisch" };
+const FIRE_STUFEN = { 1: "sehr geringe Gefahr", 2: "geringe Gefahr", 3: "mittlere Gefahr", 4: "hohe Gefahr", 5: "sehr hohe Gefahr" };
 
 // ---------- Speicher (fehlertolerant) ----------
 const store = {
@@ -439,25 +439,50 @@ function evaluate() {
     } else {
       const A = data.fire.attr;
       const edit = A.editdate ? new Date(A.editdate) : null;
-      const ageH = edit ? (Date.now() - edit) / 36e5 : Infinity;
-      const stufe = day === 0 ? A.gefahrenst : A.gefahrenst_prognose;
+      const ageDays = edit ? (Date.now() - edit) / 864e5 : Infinity;
       const region = esc(A.melderegion || "");
-      if (ageH > STALE_FIRE_HOURS) {
-        c.val = A.gefahrenst != null ? `zuletzt Stufe ${A.gefahrenst}` : "keine aktuelle Meldung";
-        c.det = `Melderegion: ${region}. Letzte Meldung vom ${edit ? fmtDateShort(edit) : "unbekannt"}. ` +
-          (ageH > 14 * 24
-            ? "Vermutlich ist die Waldbrandsaison beendet und es werden keine täglichen Stufen veröffentlicht."
-            : `Die Meldung ist älter als zwei Tage. Bitte im <a href="https://forst-lsa.maps.arcgis.com/apps/dashboards/0f1b1a23ebd04a3dbd14b76a981d8006" target="_blank" rel="noopener">Dashboard des Landeszentrums Wald</a> nachsehen.`);
-      } else if (stufe == null) {
-        c.val = day === 1 ? "keine Prognose" : "keine Stufe";
-        c.det = `Melderegion: ${region}. ${day === 1 ? "Für morgen wurde (noch) keine Prognose veröffentlicht." : "Für heute liegt keine Stufe vor."} Stand: ${edit ? fmtDateShort(edit) + ", " + fmtTime(edit) : "unbekannt"}.`;
+      const stand = edit ? `${fmtDateShort(edit)}, ${fmtTime(edit)} Uhr` : "unbekannt";
+      const month = dayDate.getMonth() + 1;
+      const editDay = edit ? edit.toLocaleDateString("sv-SE") : "";
+      const todayStr = new Date().toLocaleDateString("sv-SE");
+      const yesterdayStr = new Date(Date.now() - 864e5).toLocaleDateString("sv-SE");
+      const dash = `<a href="https://forst-lsa.maps.arcgis.com/apps/dashboards/0f1b1a23ebd04a3dbd14b76a981d8006" target="_blank" rel="noopener">Dashboard des Landeszentrums Wald</a>`;
+
+      // Stufen werden nur vom 1. März bis 30. September festgelegt (§ 3 Abs. 1 WaldBrSchVO LSA)
+      if ((month < 3 || month > 9) && ageDays > 7) {
+        c.offSeason = true;
+        c.val = "außerhalb der Saison";
+        c.det = `In Sachsen-Anhalt werden Waldbrandgefahrenstufen vom 1. März bis 30. September festgelegt (§ 3 Abs. 1 Waldbrandschutzverordnung LSA). Letzte Meldung für ${region}: Stufe ${A.gefahrenst ?? "unbekannt"} am ${stand}.`;
       } else {
+        let stufe = A.gefahrenst;
+        let note = "";
+        if (day === 0 && editDay === yesterdayStr && A.gefahrenst_prognose != null) {
+          // Heute noch nicht gemeldet: gestrige Prognose für heute mit berücksichtigen
+          stufe = Math.max(A.gefahrenst ?? 0, A.gefahrenst_prognose);
+          note = ` Heute gibt es noch keine neue Meldung. Gestern galt Stufe ${A.gefahrenst}, für heute war Stufe ${A.gefahrenst_prognose} vorhergesagt. Gewertet wird der höhere Wert.`;
+        } else if (day === 1) {
+          if (editDay === todayStr && A.gefahrenst_prognose != null) {
+            stufe = A.gefahrenst_prognose;
+            note = " Das ist die Prognose für morgen.";
+          } else if (editDay === yesterdayStr && A.gefahrenst_prognose != null) {
+            stufe = Math.max(A.gefahrenst ?? 0, A.gefahrenst_prognose);
+            note = " Für morgen liegt noch keine Prognose vor. Gewertet wird der höhere Wert aus der letzten Stufe und der Prognose für heute.";
+          } else {
+            note = " Für morgen liegt keine Prognose vor. Gewertet wird die aktuell gültige Stufe.";
+          }
+        }
+        if (ageDays > 2) note += ` Die letzte Meldung ist ${Math.floor(ageDays)} Tage alt. Ob die Stufe inzwischen neu festgelegt wurde, zeigt das ${dash}.`;
+        if (stufe == null) {
+          c.val = "keine Stufe";
+          c.det = `Melderegion: ${region}. Stand: ${stand}. Es liegt keine Stufe vor. Bitte im ${dash} nachsehen.`;
+        } else {
         c.level = levelFor(stufe, S.wbGelb, S.wbRot);
-        c.val = `Stufe ${stufe} von 5`;
-        c.det = `Melderegion: ${region}${day === 1 ? " (Prognose)" : ""}. Stand: ${edit ? fmtDateShort(edit) + ", " + fmtTime(edit) : "unbekannt"}.`;
+        c.val = `Stufe ${stufe}: ${FIRE_STUFEN[stufe] || "unbekannt"}`;
+        c.det = `Melderegion: ${region}. Stand: ${stand}.${note}`;
         c.reason = `Waldbrandgefahr Stufe ${stufe}`;
         if (c.level === 1) hints.push("Waldbrand: kein offenes Feuer, keine Glasflaschen liegen lassen, Fluchtwege kennen.");
         if (c.level === 2) hints.push("Hohe Waldbrandgefahr: aktuelle Vorgaben von Forst, Gemeinde und Träger zum Betreten des Waldes prüfen.");
+        }
       }
     }
     cards.push(c);
@@ -593,8 +618,9 @@ function evaluate() {
   const overall = checked.length ? Math.max(...checked.map((c) => c.level)) : -1;
   const reasons = cards.filter((c) => c.level > 0 && c.level >= Math.max(1, overall - 1) && c.reason)
     .sort((a, b) => b.level - a.level).map((c) => c.reason);
-  const unchecked = cards.filter((c) => c.level < 0).map((c) => c.title.replace(/^\S+\s/, ""));
-  return { cards, hints, hours, overall, reasons, unchecked, dayDate };
+  const unchecked = cards.filter((c) => c.level < 0 && !c.offSeason).map((c) => c.title.replace(/^\S+\s/, ""));
+  const offSeason = cards.some((c) => c.offSeason);
+  return { cards, hints, hours, overall, reasons, unchecked, offSeason, dayDate };
 }
 
 // ---------- Darstellung ----------
@@ -626,6 +652,7 @@ function render() {
     <div class="window">${esc(fmtDate(r.dayDate))}, ${S.start} bis ${S.end} Uhr</div>
     ${r.reasons.length ? `<ul>${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : r.overall === 0 ? "<div>Keine der geprüften Größen erreicht einen Grenzwert.</div>" : ""}
     ${r.unchecked.length ? `<div class="unchecked">Nicht geprüft: ${esc(r.unchecked.join(", "))}. Details unten.</div>` : ""}
+    ${r.offSeason ? `<div class="unchecked">Waldbrandstufe: außerhalb der Saison (März bis September).</div>` : ""}
   </section>`;
 
   if (r.hours.length) {
@@ -647,7 +674,7 @@ function render() {
 
   html += `<div class="section-title">Im Einzelnen</div><div class="cards">` +
     r.cards.map((c) => `<div class="card l${c.level}">
-      <h3><span>${c.title}</span><span class="badge l${c.level}">${LEVEL_TEXT[c.level]}</span></h3>
+      <h3><span>${c.title}</span><span class="badge l${c.level}">${c.offSeason ? "außer Saison" : LEVEL_TEXT[c.level]}</span></h3>
       <div class="val">${esc(c.val)}</div><div class="det">${c.det}</div></div>`).join("") + `</div>`;
 
   html += `<div class="section-title">Hinweise fürs Team</div><div class="hints">` +
