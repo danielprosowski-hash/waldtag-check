@@ -143,6 +143,26 @@
   .banner { background: var(--yellow-bg); color: var(--text); border-radius: 10px; padding: 8px 12px; font-size: .88rem; margin-bottom: 10px; }
   .loading { text-align: center; color: var(--muted); padding: 40px 0; }
 
+  .radar { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-top: 18px; }
+  .radar summary { cursor: pointer; padding: 12px 14px; font-weight: 600; list-style-position: inside; }
+  .radar .radar-sub { font-weight: 400; color: var(--muted); font-size: .85rem; margin-left: 4px; }
+  .radar-body { padding: 0 14px 12px; }
+  #radarMap { height: 340px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); z-index: 0; }
+  .radar-ctrl { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+  .radar-ctrl button { flex: 0 0 auto; }
+  #radarPlay { min-width: 118px; }
+  .radar-ctrl input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .radar-time { margin-top: 6px; font-size: .92rem; }
+  .radar-time.future strong { color: var(--accent); }
+  .legend { margin-top: 6px; }
+  .legend-bar {
+    height: 12px; border-radius: 6px;
+    background: linear-gradient(to right, #33FFFF 0%, #1ACC9A 7%, #019934 14%, #4DB31B 20%, #99CC01 27%, #CCE601 33%,
+      #FFFF01 40%, #FFC401 47%, #FF8901 53%, #FF4501 60%, #FE0000 67%, #E5004C 73%, #CC0098 80%, #6600CB 90%, #0000FE 100%);
+  }
+  .legend-lbl { display: flex; justify-content: space-between; font-size: .75rem; color: var(--muted); margin-top: 2px; }
+  .legend-lbl.words { font-size: .72rem; }
+
   dialog {
     border: none; border-radius: 18px; padding: 0; width: min(560px, calc(100vw - 32px));
     max-height: calc(100vh - 48px); background: var(--surface); color: var(--text);
@@ -191,6 +211,29 @@
   </div>
 
   <div id="app"><div class="loading">Daten werden geladen …</div></div>
+
+  <details class="radar" id="radar">
+    <summary>🌧️ Regenradar <span class="radar-sub">letzte Stunde und 2 Stunden Vorhersage</span></summary>
+    <div class="radar-body">
+      <div id="radarMap" role="img" aria-label="Karte mit Regenradar des Deutschen Wetterdienstes"></div>
+      <div class="radar-ctrl">
+        <button type="button" class="ghost" id="radarPlay">▶ Abspielen</button>
+        <input type="range" id="radarSlider" min="0" max="18" step="1" value="6" aria-label="Zeitpunkt wählen">
+        <button type="button" class="ghost" id="radarHome" aria-label="Karte auf den Ort zentrieren" title="Zum Ort">📍</button>
+      </div>
+      <div class="radar-time" id="radarTime" aria-live="polite"></div>
+      <label class="check"><input type="checkbox" id="radarFlash" checked> <span>Blitze anzeigen (jeweils die 5 Minuten bis zum gezeigten Zeitpunkt, nur für gemessene Zeitpunkte)</span></label>
+      <div class="legend" aria-label="Legende Niederschlag in Millimeter pro Stunde">
+        <div class="legend-bar"></div>
+        <div class="legend-lbl"><span>0,1</span><span>1</span><span>5</span><span>15</span><span>45</span><span>150 mm/h</span></div>
+        <div class="legend-lbl words"><span>leicht</span><span>mäßig</span><span>stark</span><span>sehr stark</span><span>extrem</span></div>
+      </div>
+      <p class="msg" id="radarMsg"></p>
+      <p class="msg">Die Vorhersage rechnet die Zugbahn des Regens weiter. Bei Schauern und Gewittern wird sie nach etwa einer Stunde deutlich unsicherer.</p>
+    </div>
+  </details>
+
+  <div id="app2"></div>
 
   <footer>
     <p><strong>Wichtig:</strong> Die App bündelt öffentliche Daten. Ob die Gruppe in den Wald geht, entscheidet ihr vor Ort. Die Grenzwerte sind Startwerte und sollten zu eurem Hitzeaktionsplan und euren Regeln passen.</p>
@@ -627,6 +670,7 @@ function evaluate() {
 function renderLoc() {
   $("locName").textContent = loc.name;
   $("locSub").textContent = loc.sub || `${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)}`;
+  if (typeof updateRadarLoc === "function") updateRadarLoc();
 }
 
 function render() {
@@ -671,8 +715,10 @@ function render() {
   if (wcName) {
     html += `<p class="msg"><a href="https://www.wetter.com/suche/?q=${encodeURIComponent(wcName)}" target="_blank" rel="noopener">Zum Vergleich: ${esc(wcName)} bei wetter.com ansehen ↗</a></p>`;
   }
+  $("app").innerHTML = html;
 
-  html += `<div class="section-title">Im Einzelnen</div><div class="cards">` +
+  // Unterhalb des Regenradars
+  html = `<div class="section-title">Im Einzelnen</div><div class="cards">` +
     r.cards.map((c) => `<div class="card l${c.level}">
       <h3><span>${c.title}</span><span class="badge l${c.level}">${c.offSeason ? "außer Saison" : LEVEL_TEXT[c.level]}</span></h3>
       <div class="val">${esc(c.val)}</div><div class="det">${c.det}</div></div>`).join("") + `</div>`;
@@ -681,8 +727,156 @@ function render() {
     (r.hints.length ? `<ul>${r.hints.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : "Keine Besonderheiten. Die übliche Ausrüstung reicht.") +
     `</div>`;
 
-  $("app").innerHTML = html;
+  $("app2").innerHTML = html;
 }
+
+// ---------- Regenradar (DWD) ----------
+const DWD_WMS = "https://maps.dwd.de/geoserver/dwd/wms";
+const RADAR_STEP = 10, RADAR_PAST = 60, RADAR_FUTURE = 120; // Minuten
+const radar = { map: null, marker: null, frames: [], idx: RADAR_PAST / RADAR_STEP, timer: null, playing: false, analysis: null, ready: null };
+
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+    document.head.appendChild(css);
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Leaflet nicht geladen"));
+    document.head.appendChild(s);
+  });
+}
+
+// Zeitpunkt der letzten Radarmessung; die Vorhersage reicht zwei Stunden weiter
+async function radarAnalysisTime() {
+  try {
+    const x = await (await fetch("https://maps.dwd.de/geoserver/dwd/Radar_wn-analysis_1x1km_ger/wms?service=WMS&version=1.3.0&request=GetCapabilities")).text();
+    const m = x.match(/<Dimension name="time"[^>]*default="([^"]+)"/);
+    if (m && !isNaN(new Date(m[1]))) return new Date(m[1]);
+  } catch { /* Rückfall unten */ }
+  return new Date(Math.floor((Date.now() - 10 * 60000) / 3e5) * 3e5);
+}
+
+function wmsUrl(layer, time, bbox, w, h) {
+  const p = new URLSearchParams({
+    service: "WMS", version: "1.3.0", request: "GetMap", layers: "dwd:" + layer, styles: "",
+    format: "image/png", transparent: "true", crs: "EPSG:3857", bbox: bbox.join(","),
+    width: w, height: h, time: time.toISOString()
+  });
+  return DWD_WMS + "?" + p;
+}
+
+function buildRadarFrames() {
+  const map = radar.map;
+  radar.frames.forEach((f) => { f.rain.remove(); if (f.flash) f.flash.remove(); });
+  const b = map.getBounds();
+  const sw = L.CRS.EPSG3857.project(b.getSouthWest()), ne = L.CRS.EPSG3857.project(b.getNorthEast());
+  const bbox = [sw.x, sw.y, ne.x, ne.y].map((v) => v.toFixed(0));
+  // Einfache Auflösung reicht, das Radar hat 1 km Raster
+  const size = map.getSize();
+  const w = size.x, h = size.y;
+  radar.frames = [];
+  for (let m = -RADAR_PAST; m <= RADAR_FUTURE; m += RADAR_STEP) {
+    const t = new Date(radar.analysis.getTime() + m * 60000);
+    const opt = { opacity: 0, interactive: false };
+    const rain = L.imageOverlay(wmsUrl("Radar_rv_product_1x1km_ger", t, bbox, w, h), b, opt);
+    const flash = m <= 0 ? L.imageOverlay(wmsUrl("Accumulated_Flash_Geometry", t, bbox, w, h), b, opt) : null;
+    radar.frames.push({ m, t, rain, flash });
+  }
+  // Gezeigten Zeitpunkt zuerst laden, dann der Reihe nach von dort aus
+  const start = Math.min(radar.idx, radar.frames.length - 1);
+  const order = radar.frames.map((_, k) => (start + k) % radar.frames.length);
+  order.forEach((k) => {
+    const f = radar.frames[k];
+    f.rain.addTo(map);
+    if (f.flash) f.flash.addTo(map);
+    f.rain.getElement().addEventListener("load", () => { if (k === radar.idx) showRadarFrame(k); });
+  });
+  $("radarSlider").max = radar.frames.length - 1;
+  showRadarFrame(start);
+}
+
+function showRadarFrame(i) {
+  radar.idx = i;
+  const flashes = $("radarFlash").checked;
+  radar.frames.forEach((f, k) => {
+    f.rain.setOpacity(k === i ? 0.75 : 0);
+    if (f.flash) f.flash.setOpacity(k === i && flashes ? 1 : 0);
+  });
+  const f = radar.frames[i];
+  if (!f) return;
+  $("radarSlider").value = i;
+  const rel = f.m === 0 ? "letzte Messung" : f.m < 0 ? `Messung vor ${-f.m} min` : `Vorhersage +${f.m} min`;
+  const el = f.rain.getElement();
+  const loading = el && !(el.complete && el.naturalWidth > 0);
+  $("radarTime").innerHTML = `<strong>${fmtTime(f.t)} Uhr</strong> · ${rel}${loading ? " · lädt …" : ""}`;
+  $("radarTime").classList.toggle("future", f.m > 0);
+}
+
+function radarPlay(on) {
+  clearTimeout(radar.timer);
+  radar.playing = on;
+  $("radarPlay").textContent = on ? "⏸ Pause" : "▶ Abspielen";
+  if (!on) return;
+  const step = () => {
+    const next = (radar.idx + 1) % radar.frames.length;
+    showRadarFrame(next);
+    radar.timer = setTimeout(step, next === radar.frames.length - 1 ? 1600 : 700);
+  };
+  radar.timer = setTimeout(step, 700);
+}
+
+function initRadar() {
+  if (radar.ready) return radar.ready;
+  radar.ready = (async () => {
+    $("radarMsg").textContent = "Radar wird geladen …";
+    await loadLeaflet();
+    radar.analysis = await radarAnalysisTime();
+    // Kein Mausrad-Zoom, sonst zoomt man beim Scrollen der Seite aus Versehen
+    radar.map = L.map("radarMap", { minZoom: 5, maxZoom: 12, scrollWheelZoom: false }).setView([loc.lat, loc.lon], 9);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(radar.map);
+    radar.map.attributionControl.addAttribution('Radar und Blitze: © <a href="https://www.dwd.de">Deutscher Wetterdienst</a>');
+    radar.marker = L.circleMarker([loc.lat, loc.lon], { radius: 7, color: "#fff", weight: 2, fillColor: "#B3261E", fillOpacity: 1 }).addTo(radar.map);
+    buildRadarFrames();
+    let t;
+    radar.map.on("moveend", () => { clearTimeout(t); t = setTimeout(buildRadarFrames, 250); });
+    $("radarMsg").textContent = "";
+    radarPlay(true);
+  })().catch(() => {
+    radar.ready = null;
+    $("radarMsg").textContent = "Das Radar konnte nicht geladen werden. Bitte später noch einmal öffnen.";
+  });
+  return radar.ready;
+}
+
+async function refreshRadar() {
+  if (!radar.map) return;
+  radar.analysis = await radarAnalysisTime();
+  buildRadarFrames();
+}
+
+function updateRadarLoc() {
+  if (!radar.map) return;
+  radar.marker.setLatLng([loc.lat, loc.lon]);
+  radar.map.setView([loc.lat, loc.lon], radar.map.getZoom()); // löst moveend und damit neue Bilder aus
+}
+
+$("radar").addEventListener("toggle", () => {
+  if ($("radar").open) {
+    initRadar().then(() => { if (radar.map) radar.map.invalidateSize(); });
+  } else {
+    radarPlay(false);
+  }
+});
+$("radarPlay").onclick = () => radarPlay(!radar.playing);
+$("radarHome").onclick = () => { if (radar.map) radar.map.setView([loc.lat, loc.lon], 9); };
+$("radarSlider").oninput = (e) => { radarPlay(false); showRadarFrame(Number(e.target.value)); };
+$("radarFlash").onchange = () => showRadarFrame(radar.idx);
 
 // ---------- Tag umschalten ----------
 function setDay(d) {
@@ -693,7 +887,7 @@ function setDay(d) {
 }
 $("tabToday").onclick = () => setDay(0);
 $("tabTomorrow").onclick = () => setDay(1);
-$("btnRefresh").onclick = () => load();
+$("btnRefresh").onclick = () => { load(); refreshRadar(); };
 
 // ---------- Ort wählen ----------
 function chooseLoc(l) {
@@ -814,7 +1008,7 @@ document.querySelectorAll("dialog").forEach((d) => d.addEventListener("click", (
 
 // Nach längerer Pause automatisch aktualisieren
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && data && Date.now() - data.fetchedAt > 30 * 60 * 1000) load();
+  if (document.visibilityState === "visible" && data && Date.now() - data.fetchedAt > 30 * 60 * 1000) { load(); refreshRadar(); }
 });
 
 // ---------- Start ----------
